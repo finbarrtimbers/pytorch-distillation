@@ -1,4 +1,7 @@
 from torchvision import datasets
+from torch.utils.data import sampler
+import torch
+import networks
 
 class CIFAR10Distilled(datasets.CIFAR10):
     """`CIFAR10 <https://www.cs.toronto.edu/~kriz/cifar.html>`_ Dataset.
@@ -145,16 +148,33 @@ class CIFAR10Distilled(datasets.CIFAR10):
         fmt_str += '{0}{1}'.format(tmp, self.target_transform.__repr__().replace('\n', '\n' + ' ' * len(tmp)))
         return fmt_str
 
-def get_datasets(dataset="Cifar10"):
+def get_datasets(dataset="Cifar10", root="./data/",
+                 transform=networks.transform,
+                 download=False,
+                 batch_size: int = 32,
+                 num_workers: int = 1,
+                 pin_memory: bool = False):
     if dataset == "Cifar10":
         train = datasets.CIFAR10(root=root, train=True, transform=transform,
-                                 download=True)
+                                 download=download)
         test = datasets.CIFAR10(root=root, train=False, transform=transform,
-                                download=True)
-    elif dataset == "distilled":
+                                download=download)
+    else:
+        assert dataset == "distilled"
         train = ""
         test = ""
     num_train = len(train)
-    train_idx = int(0.8 * num_train)
-    train, val = train[:train_idx], train[train_idx:]
-    return train, val, test
+    train_split = int(0.8 * num_train)
+    indices = list(range(num_train))
+    train_idx, valid_idx = indices[:train_split], indices[train_split:]
+    train_sampler = sampler.SubsetRandomSampler(train_idx)
+    valid_sampler = sampler.SubsetRandomSampler(valid_idx)
+    train_loader = torch.utils.data.DataLoader(train, batch_size=batch_size,
+                                               sampler=train_sampler,
+                                               num_workers=num_workers,
+                                               pin_memory=pin_memory)
+    valid_loader = torch.utils.data.DataLoader(train, batch_size=batch_size,
+                                               sampler=valid_sampler,
+                                               num_workers=num_workers,
+                                               pin_memory=pin_memory)
+    return train_loader, valid_loader, test
